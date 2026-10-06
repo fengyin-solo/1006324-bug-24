@@ -33,6 +33,38 @@
       <button class="btn ghost" type="button" @click="resetFilters">重置条件</button>
     </form>
 
+    <section class="handover-panel readonly-panel">
+      <h3>其余入口上报的照明遗留清单（只读）</h3>
+      <p class="panel-note">照明损坏上报后自动落到本清单，与设施检修管理的照明更换待办取同一份数据：检修待办 {{ replacementTodos.length }} 条，本清单 {{ replacementTodos.length }} 条，两处条数一致。</p>
+      <table class="data-table inner-table">
+        <thead>
+          <tr>
+            <th>报修单号</th>
+            <th>灯具编号/位置</th>
+            <th>所属舱室</th>
+            <th>上报时间</th>
+            <th>上报岗位</th>
+            <th>遗留事项</th>
+            <th>处理去向</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="todo in replacementTodos" :key="todo.report.id">
+            <td>{{ todo.report.reportNo }}</td>
+            <td>{{ todo.report.lampCode }} · {{ todo.report.position }}</td>
+            <td>{{ todo.report.cabinCode }}舱</td>
+            <td>{{ todo.report.reportedAt }}</td>
+            <td>{{ todo.report.reporterPost }}</td>
+            <td>{{ todo.report.damageNote }}</td>
+            <td>检修班更换中（{{ todo.report.maintenanceNo }}）</td>
+          </tr>
+          <tr v-if="!replacementTodos.length">
+            <td colspan="7" class="empty-state">暂无照明遗留事项</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
     <table class="data-table">
       <thead>
         <tr>
@@ -76,8 +108,10 @@ import { computed, onMounted, ref } from 'vue'
 import {
   downloadEntries,
   listEntries,
+  listReplacementTodos,
   moduleMeta,
   runAction as applyAction,
+  type ReplacementTodo,
 } from '@/api/local-service'
 import type { EntryRow } from '@/data/types'
 
@@ -89,6 +123,7 @@ const stats = [{"label": "待交接班次", "value": 0}, {"label": "已交接班
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
+const replacementTodos = ref<ReplacementTodo[]>([])
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
@@ -128,6 +163,7 @@ function reload() {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    replacementTodos.value = listReplacementTodos()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '运维值班交接列表读取失败'
   }

@@ -33,6 +33,40 @@
       <button class="btn ghost" type="button" @click="resetFilters">重置条件</button>
     </form>
 
+    <section class="handover-panel">
+      <h3>照明灯具更换待办（检修班接单入口）</h3>
+      <p class="panel-note">与照明损坏上报、值班遗留清单同源同份：共 {{ replacementTodos.length }} 条待更换，两边条数一致。</p>
+      <table class="data-table inner-table">
+        <thead>
+          <tr>
+            <th>报修单号</th>
+            <th>检修编号</th>
+            <th>检修对象</th>
+            <th>上报时间</th>
+            <th>上报人/岗位</th>
+            <th>损坏情况</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="todo in replacementTodos" :key="todo.report.id">
+            <td>{{ todo.report.reportNo }}</td>
+            <td>{{ todo.report.maintenanceNo }}</td>
+            <td>{{ todo.report.lampCode }} · {{ todo.report.position }}</td>
+            <td>{{ todo.report.reportedAt }}</td>
+            <td>{{ todo.report.reporter }} / {{ todo.report.reporterPost }}</td>
+            <td>{{ todo.report.damageNote }}</td>
+            <td class="row-actions">
+              <button class="link" type="button" @click="finishReplacement(todo.report.id)">确认更换完工</button>
+            </td>
+          </tr>
+          <tr v-if="!replacementTodos.length">
+            <td colspan="7" class="empty-state">暂无照明灯具更换待办</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
     <table class="data-table">
       <thead>
         <tr>
@@ -76,11 +110,16 @@ import { computed, onMounted, ref } from 'vue'
 import {
   downloadEntries,
   listEntries,
+  listReplacementTodos,
   moduleMeta,
   runAction as applyAction,
+  type ReplacementTodo,
 } from '@/api/local-service'
+import { completeReplacement } from '@/domain/lighting'
+import { useSessionStore } from '@/stores/session'
 import type { EntryRow } from '@/data/types'
 
+const store = useSessionStore()
 const meta = moduleMeta('maintenance')
 const columns = ["检修编号", "检修对象", "检修类别", "检修班组", "计划工期", "完工日期", "更换部件", "检修状态"]
 const actions = ["提交开工", "确认完工", "申请延期"]
@@ -89,6 +128,7 @@ const stats = [{"label": "待开工检修", "value": 0}, {"label": "检修中记
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
+const replacementTodos = ref<ReplacementTodo[]>([])
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
@@ -122,12 +162,24 @@ function runAction(action: string, row: EntryRow) {
   reload()
 }
 
+function finishReplacement(reportId: number) {
+  errorMessage.value = ''
+  const result = completeReplacement(store.postId, store.operator, reportId)
+  if (!result.ok) {
+    errorMessage.value = result.message
+    return
+  }
+  errorMessage.value = result.message
+  reload()
+}
+
 function reload() {
   errorMessage.value = ''
   try {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    replacementTodos.value = listReplacementTodos()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '设施检修管理列表读取失败'
   }
